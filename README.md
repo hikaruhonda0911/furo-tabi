@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 1. プロダクトビジョン
 
-## Getting Started
+「風呂トイレ別の宿を、誰もが簡単に見つけられる世界を創る」
 
-First, run the development server:
+# 2. コア・バリュー（三原則）
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Physical First**: 風呂トイレ別、シャワーブースのみの２つの条件をもとに宿泊施設を厳選。無駄な情報は省き、所在地、風呂情報（バストイレ別、シャワーブースのみの部屋がどのグレードか）、大浴場、サウナの有無等の情報に厳選して提供。
+- **URL Driven**: `nuqs` を活用し、検索条件（エリア、日付、人数、タグ）を全てURLパラメータに同期。状態管理の複雑さを排除する。
+- **Hybrid Fetch**: リアルタイムな空室・価格（楽天API）と、信頼された設備データ（Supabase）をサーバーサイドで結合する。
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+# 3. 画面設計・機能要件
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 3.1. 検索パネル (Search Panel)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **エリア選択**: 都道府県コードを選択するドロップダウン。楽天APIの必須パラメータ。
+- **日付・人数**: チェックイン/アウト日、大人人数（楽天APIの必須パラメータ）。デフォルトは当日から１泊、大人1名。
+- **設備タグ (Toggle)**: 「サウナ」「露天風呂」「入浴剤あり」など、Supabase側のフラグでフィルタリング。
 
-## Learn More
+## 3.2. 検索結果一覧 (Hotel List)
 
-To learn more about Next.js, take a look at the following resources:
+- **表示項目**: 施設名、最安料金（税込）、施設画像、レビュー平均点。
+- **ソート**: 料金の安い順 /高い順、 レビュー高い順（デフォルトは料金の安い順）。
+- **外部リンク**: 楽天トラベルの施設ページへダイレクトに遷移。別タブで開く。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# 4. システムアーキテクチャ
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 4.1. データフロー詳細
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1.  **Request**: フロントエンドから `/api/hotels?area=...&checkin=...&tags=...` へGETリクエスト。
+2.  **Filter (Supabase)**: 指定されたエリアコードと設備タグに合致する `hotel_id` を抽出。
+    - この際、`is_verified = true`（風呂トイレ別確定）のもののみを対象とする。
+3.  **Fetch (Rakuten API)**: `vacantHotelSearch` を実行。エリア内の空室がある宿を取得。
+4.  **Intersection (Logic)**: 楽天の空室リストの中から、SupabaseのIDリストに含まれるものだけを抽出（フィルター）。
+5.  **Response**: 抽出された宿情報を、定義したJSONフォーマットでフロントに返却。
