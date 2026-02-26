@@ -1,0 +1,2 @@
+npx biome check --write --staged
+npm run type-check
