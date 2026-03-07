@@ -33,5 +33,10 @@
       "jsxQuoteStyle": "double",
       "trailingCommas": "all"
     }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
   }
 }
