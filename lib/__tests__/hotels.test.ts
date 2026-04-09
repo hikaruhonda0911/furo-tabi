@@ -107,9 +107,7 @@ describe('searchHotels', () => {
 
   it('楽天API失敗時はDBフォールバックを返す', async () => {
     const dbRows = [buildDbRow()];
-    const mockRpc = vi
-      .fn()
-      .mockResolvedValue({ data: dbRows, error: null });
+    const mockRpc = vi.fn().mockResolvedValue({ data: dbRows, error: null });
     vi.doMock('@/lib/supabase/server', () => ({
       createServerClient: () => ({ rpc: mockRpc }),
     }));
@@ -133,9 +131,7 @@ describe('searchHotels', () => {
         hotel_has_public_bath: true,
       }),
     ];
-    const mockRpc = vi
-      .fn()
-      .mockResolvedValue({ data: dbRows, error: null });
+    const mockRpc = vi.fn().mockResolvedValue({ data: dbRows, error: null });
     vi.doMock('@/lib/supabase/server', () => ({
       createServerClient: () => ({ rpc: mockRpc }),
     }));
@@ -185,9 +181,7 @@ describe('searchHotels', () => {
 
   it('重複ホテルは最安値を採用する', async () => {
     const dbRows = [buildDbRow()];
-    const mockRpc = vi
-      .fn()
-      .mockResolvedValue({ data: dbRows, error: null });
+    const mockRpc = vi.fn().mockResolvedValue({ data: dbRows, error: null });
     vi.doMock('@/lib/supabase/server', () => ({
       createServerClient: () => ({ rpc: mockRpc }),
     }));
@@ -252,9 +246,7 @@ describe('searchHotels', () => {
 
   it('DBに無いホテルはフィルタリングされる', async () => {
     const dbRows = [buildDbRow({ rakuten_hotel_id: 11111 })];
-    const mockRpc = vi
-      .fn()
-      .mockResolvedValue({ data: dbRows, error: null });
+    const mockRpc = vi.fn().mockResolvedValue({ data: dbRows, error: null });
     vi.doMock('@/lib/supabase/server', () => ({
       createServerClient: () => ({ rpc: mockRpc }),
     }));
@@ -298,9 +290,7 @@ describe('searchHotels', () => {
 
   it('minPrice・maxPriceが楽天APIのURLに含まれる', async () => {
     const dbRows = [buildDbRow()];
-    const mockRpc = vi
-      .fn()
-      .mockResolvedValue({ data: dbRows, error: null });
+    const mockRpc = vi.fn().mockResolvedValue({ data: dbRows, error: null });
     vi.doMock('@/lib/supabase/server', () => ({
       createServerClient: () => ({ rpc: mockRpc }),
     }));

@@ -35,13 +35,11 @@ const mockDbRows = [
     hotel_google_review_count: 0,
     hotel_google_photo_url: '',
     hotel_latitude: 35.69,
-    hotel_longitude: 139.70,
+    hotel_longitude: 139.7,
   },
 ];
 
-const mockRpc = vi
-  .fn()
-  .mockResolvedValue({ data: mockDbRows, error: null });
+const mockRpc = vi.fn().mockResolvedValue({ data: mockDbRows, error: null });
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({ rpc: mockRpc }),
@@ -237,9 +235,7 @@ describe('GET /api/hotels', () => {
     mockRpc.mockResolvedValueOnce({ data: [], error: null });
 
     // Use different params to avoid in-memory cache from prior test
-    const res = await GET(
-      buildRequest({ areas: 'osaka', guests: '1' }),
-    );
+    const res = await GET(buildRequest({ areas: 'osaka', guests: '1' }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.hotels).toEqual([]);
