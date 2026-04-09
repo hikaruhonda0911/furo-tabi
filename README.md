@@ -1,3 +1,7 @@
+## Demo
+
+https://furo-tabi.mui-co.workers.dev/
+
 # 1. プロダクトビジョン
 
 「風呂トイレ別の宿を、誰もが簡単に見つけられる世界を創る」
@@ -22,9 +26,19 @@
 - **ソート**: おすすめ順（DBのおすすめランク順）/ 料金の安い順 / 料金の高い順（デフォルトはおすすめ順）。
 - **外部リンク**: 楽天トラベルの施設ページへダイレクトに遷移。別タブで開く。
 
-# 4. システムアーキテクチャ
+# 4. ブランドアセット
 
-## 4.1. データフロー詳細
+| ファイル | パス | 用途 |
+|---|---|---|
+| favicon.ico | `app/favicon.ico` | ブラウザタブ |
+| icon.svg | `app/icon.svg` | 汎用アイコン（Web、SNSプロフィール等） |
+| apple-icon.png | `app/apple-icon.png` | Apple タッチアイコン |
+
+広告・SNS・OGP等で使用する場合は上記ファイルを利用してください。
+
+# 5. システムアーキテクチャ
+
+## 5.1. データフロー詳細
 
 1.  **Request**: フロントエンドから `/api/hotels?areas=tokyo,kanagawa,...&checkin=...&checkout=...&guests=...&min_price=...&max_price=...&tags=...` へGETリクエスト。
 2.  **Filter (Supabase)**: 指定されたエリアコードと設備タグに合致する `hotel_id` を抽出。
@@ -33,7 +47,7 @@
 4.  **Intersection (Logic)**: 楽天の空室リストの中から、SupabaseのIDリストに含まれるものだけを抽出（フィルター）。
 5.  **Response**: 抽出された宿情報を、定義したJSONフォーマットでフロントに返却。
 
-## 4.2. URL同期（nuqs）
+## 5.2. URL同期（nuqs）
 
 `app/page.tsx` では `nuqs` の `useQueryStates` で以下をURL同期する:
 
@@ -51,7 +65,7 @@
 
 これにより、URLを共有すると同じ検索条件を再現できる。
 
-## 4.3. バリデーション方針（フロント + サーバー）
+## 5.3. バリデーション方針（フロント + サーバー）
 
 同じルールをフロントと `/api/hotels` の両方で検証する:
 

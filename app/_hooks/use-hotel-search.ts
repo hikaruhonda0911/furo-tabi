@@ -110,16 +110,14 @@ export function useHotelSearch(options?: { initialHotels?: Hotel[] }) {
   })();
 
   const areasByRegion = (() => {
-    const regionOrder = [
-      ...regionConfigs.map((region) => region.name),
-      'その他',
-    ];
+    const regionOrder = regionConfigs.map((region) => region.name);
     const grouped = new Map<string, AreaOption[]>(
       regionOrder.map((name) => [name, []]),
     );
 
     for (const option of areaOptions) {
-      const region = areaRegionById[option.id] ?? 'その他';
+      const region = areaRegionById[option.id];
+      if (!region) continue;
       const list = grouped.get(region);
       if (list) list.push(option);
     }
@@ -149,7 +147,7 @@ export function useHotelSearch(options?: { initialHotels?: Hotel[] }) {
         const validationError = validateSearchParams({
           checkin,
           checkout,
-          guests: guests || '1',
+          guests: guests || searchDefaults.guests,
           minPrice,
           maxPrice,
         });
@@ -226,8 +224,24 @@ export function useHotelSearch(options?: { initialHotels?: Hotel[] }) {
   const sortedHotels = (() => {
     const copied = [...hotels];
     if (sortBy === 'recommended') return copied;
-    if (sortBy === 'price-low') copied.sort((a, b) => a.price - b.price);
-    if (sortBy === 'price-high') copied.sort((a, b) => b.price - a.price);
+    if (sortBy === 'price-low') {
+      copied.sort((a, b) => {
+        const left =
+          a.priceType === 'none' ? Number.POSITIVE_INFINITY : a.price;
+        const right =
+          b.priceType === 'none' ? Number.POSITIVE_INFINITY : b.price;
+        return left - right;
+      });
+    }
+    if (sortBy === 'price-high') {
+      copied.sort((a, b) => {
+        const left =
+          a.priceType === 'none' ? Number.NEGATIVE_INFINITY : a.price;
+        const right =
+          b.priceType === 'none' ? Number.NEGATIVE_INFINITY : b.price;
+        return right - left;
+      });
+    }
     return copied;
   })();
 

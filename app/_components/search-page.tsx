@@ -1,12 +1,14 @@
 'use client';
 
 import { Button } from '@base-ui/react/button';
+import { addDays, format, parseISO } from 'date-fns';
 import { List, MapPin } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 
 import { Pagination } from '@/components/ui/pagination';
-import { trackPageScrollDepth, trackShareClick } from '@/lib/analytics';
+import { trackPageScrollDepth } from '@/lib/analytics';
+import { getDefaultCheckin, getDefaultCheckout } from '@/lib/defaults';
 import type { Hotel } from '@/types/hotel';
 import { useHotelSearch } from '../_hooks/use-hotel-search';
 import { AreaDialog } from './area-dialog';
@@ -53,6 +55,10 @@ function useScrollDepth() {
   }, []);
 }
 
+function getNextDate(date: string, amount: number): string {
+  return format(addDays(parseISO(date), amount), 'yyyy-MM-dd');
+}
+
 export function SearchPage({ initialHotels }: SearchPageProps) {
   const {
     query,
@@ -81,31 +87,38 @@ export function SearchPage({ initialHotels }: SearchPageProps) {
 
   useScrollDepth();
 
-  const handleShare = async (platform: 'twitter' | 'line' | 'copy_link') => {
-    const pageUrl = window.location.href;
-    const text = '風呂旅 — バストイレ別・シャワーブースのモダンホテルを検索';
-
-    trackShareClick({ platform, page_url: pageUrl });
-
-    if (platform === 'twitter') {
-      window.open(
-        `https://twitter.com/intent/tweet?url=${encodeURIComponent(pageUrl)}&text=${encodeURIComponent(text)}`,
-        '_blank',
-        'noopener,noreferrer',
-      );
-    } else if (platform === 'line') {
-      window.open(
-        `https://line.me/R/msg/text/?${encodeURIComponent(`${text}\n${pageUrl}`)}`,
-        '_blank',
-        'noopener,noreferrer',
-      );
-    } else if (platform === 'copy_link') {
-      try {
-        await navigator.clipboard.writeText(pageUrl);
-      } catch {
-        // clipboard API が使えない環境では何もしない
-      }
+  const handleCheckinChange = (value: string) => {
+    if (!value) {
+      void setQuery({ checkin: '', checkout: '' });
+      return;
     }
+
+    const nextCheckout =
+      query.checkout && query.checkout > value
+        ? query.checkout
+        : getNextDate(value, 1);
+
+    void setQuery({
+      checkin: value,
+      checkout: nextCheckout,
+    });
+  };
+
+  const handleCheckoutChange = (value: string) => {
+    if (!value) {
+      void setQuery({ checkin: '', checkout: '' });
+      return;
+    }
+
+    const nextCheckin =
+      query.checkin && query.checkin < value
+        ? query.checkin
+        : getNextDate(value, -1);
+
+    void setQuery({
+      checkin: nextCheckin,
+      checkout: value,
+    });
   };
 
   return (
@@ -145,9 +158,15 @@ export function SearchPage({ initialHotels }: SearchPageProps) {
               filter_value: value,
             });
           }}
-          onCheckinChange={(value) => void setQuery({ checkin: value })}
-          onCheckoutChange={(value) => void setQuery({ checkout: value })}
+          onCheckinChange={handleCheckinChange}
+          onCheckoutChange={handleCheckoutChange}
           onClearDates={() => void setQuery({ checkin: '', checkout: '' })}
+          onRestoreDates={() =>
+            void setQuery({
+              checkin: getDefaultCheckin(),
+              checkout: getDefaultCheckout(),
+            })
+          }
           onGuestsChange={(value) => void setQuery({ guests: value })}
           onOpenAreaDialog={() => setShowAreaDialog(true)}
           onToggleMore={() => setShowMore((prev) => !prev)}
@@ -192,36 +211,7 @@ export function SearchPage({ initialHotels }: SearchPageProps) {
           </p>
         )}
 
-        <div className="mt-6 flex items-center justify-between">
-          {/* SNS シェアボタン */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void handleShare('twitter')}
-              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:border-foreground/30 hover:text-foreground"
-              aria-label="X（Twitter）でシェア"
-            >
-              X
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleShare('line')}
-              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:border-foreground/30 hover:text-foreground"
-              aria-label="LINEでシェア"
-            >
-              LINE
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleShare('copy_link')}
-              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:border-foreground/30 hover:text-foreground"
-              aria-label="リンクをコピー"
-            >
-              リンクをコピー
-            </button>
-          </div>
-
-          {/* リスト / マップ切り替え */}
+        <div className="mt-6 flex justify-end">
           <div className="flex rounded-lg border border-border">
             <Button
               onClick={() => setViewMode('list')}

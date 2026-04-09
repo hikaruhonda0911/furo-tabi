@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "furo-tabi",
+  "compatibility_date": "2026-03-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./worker/index.ts",
+  "assets": {
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SEARCH_CACHE",
+      "id": "4253a57b142343adb7ba46e810625825"
+    }
+  ],
+  "images": {
+    "binding": "IMAGES"
+  },
+  // 毎週月曜 AM4:00 JST (日曜 19:00 UTC) にホテル情報を同期
+  "triggers": {
+    "crons": ["0 19 * * SUN"]
+  }
+}
