@@ -2,11 +2,7 @@ import type { Metadata } from 'next';
 import { unstable_cache } from 'next/cache';
 
 import { fallbackAreaOptions } from '@/constants/areas';
-import {
-  getDefaultCheckin,
-  getDefaultCheckout,
-  searchDefaults,
-} from '@/lib/defaults';
+import { searchDefaults } from '@/lib/defaults';
 import { type SearchHotelsParams, searchHotels } from '@/lib/hotels';
 import type { Hotel } from '@/types/hotel';
 

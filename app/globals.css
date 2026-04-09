@@ -144,7 +144,6 @@ button {
   animation: dropdown-in 150ms ease-out;
 }
 
-/* biome-ignore lint/complexity/noImportantStyles: prefers-reduced-motion override requires !important */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
