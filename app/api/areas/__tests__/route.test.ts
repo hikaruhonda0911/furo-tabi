@@ -8,6 +8,7 @@ function buildRequest() {
 describe('GET /api/areas', () => {
   beforeEach(() => {
     vi.stubEnv('RAKUTEN_APP_ID', 'test-app-id');
+    vi.stubEnv('RAKUTEN_ACCESS_KEY', 'test-access-key');
   });
 
   it('returns 500 when RAKUTEN_APP_ID is missing', async () => {
@@ -72,18 +73,43 @@ describe('GET /api/areas', () => {
         { id: 'osaka', label: '大阪' },
       ]),
     );
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=86400');
+    expect(res.headers.get('Cache-Control')).toBe(
+      'public, s-maxage=86400, stale-while-revalidate=86400',
+    );
 
     fetchSpy.mockRestore();
   });
 
   it('deduplicates areas with same id', async () => {
     const payload = {
-      classes: [
-        { middleClassCode: 'tokyo', middleClassName: '東京' },
-        { middleClassCode: 'tokyo', middleClassName: '東京' },
-        { middleClassCode: 'osaka', middleClassName: '大阪' },
-      ],
+      areaClasses: {
+        largeClasses: [
+          {
+            largeClass: [
+              { largeClassCode: 'japan' },
+              {
+                middleClasses: [
+                  {
+                    middleClass: [
+                      { middleClassCode: 'tokyo', middleClassName: '東京' },
+                    ],
+                  },
+                  {
+                    middleClass: [
+                      { middleClassCode: 'tokyo', middleClassName: '東京' },
+                    ],
+                  },
+                  {
+                    middleClass: [
+                      { middleClassCode: 'osaka', middleClassName: '大阪' },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     };
 
     const fetchSpy = vi

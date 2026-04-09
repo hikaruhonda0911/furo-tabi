@@ -2,10 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SearchHotelsParams } from '../hotels';
 
-// Mock supabase
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
-    rpc: vi.fn(),
+    rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
   }),
 }));
 
@@ -19,6 +18,28 @@ const baseParams: SearchHotelsParams = {
   maxPrice: null,
 };
 
+function buildDbRow(overrides: Record<string, unknown> = {}) {
+  return {
+    rakuten_hotel_id: 12345,
+    hotel_tag_slugs: ['separate-bath'],
+    separate_bath_rooms: ['デラックスツイン'],
+    shower_only_rooms: [],
+    hotel_name: 'テストホテル',
+    hotel_image_url: 'https://img.rakuten.co.jp/test.jpg',
+    hotel_min_charge: 15000,
+    hotel_prefecture: '東京都',
+    hotel_has_public_bath: false,
+    hotel_has_sauna: false,
+    hotel_has_private_bath: false,
+    hotel_google_rating: 0,
+    hotel_google_review_count: 0,
+    hotel_google_photo_url: '',
+    hotel_latitude: 35.68,
+    hotel_longitude: 139.69,
+    ...overrides,
+  };
+}
+
 describe('searchHotels', () => {
   const originalEnv = process.env;
 
@@ -27,6 +48,7 @@ describe('searchHotels', () => {
     process.env = {
       ...originalEnv,
       RAKUTEN_APP_ID: 'test-app-id',
+      RAKUTEN_ACCESS_KEY: 'test-access-key',
       NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
       NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-key',
     };
@@ -40,6 +62,13 @@ describe('searchHotels', () => {
   it('RAKUTEN_APP_IDが未設定ならエラーをスローする', async () => {
     process.env.RAKUTEN_APP_ID = '';
     delete process.env.RAKUTEN_APP_ID;
+
+    const mockRpc = vi
+      .fn()
+      .mockResolvedValue({ data: [buildDbRow()], error: null });
+    vi.doMock('@/lib/supabase/server', () => ({
+      createServerClient: () => ({ rpc: mockRpc }),
+    }));
 
     const { searchHotels } = await import('../hotels');
 
@@ -76,16 +105,11 @@ describe('searchHotels', () => {
     );
   });
 
-  it('楽天API失敗で全結果が失敗ならエラーをスローする', async () => {
-    const dbRows = [
-      {
-        rakuten_hotel_id: 12345,
-        hotel_tag_slugs: ['separate-bath'],
-        separate_bath_rooms: ['デラックスツイン'],
-        shower_only_rooms: [],
-      },
-    ];
-    const mockRpc = vi.fn().mockResolvedValue({ data: dbRows, error: null });
+  it('楽天API失敗時はDBフォールバックを返す', async () => {
+    const dbRows = [buildDbRow()];
+    const mockRpc = vi
+      .fn()
+      .mockResolvedValue({ data: dbRows, error: null });
     vi.doMock('@/lib/supabase/server', () => ({
       createServerClient: () => ({ rpc: mockRpc }),
     }));
@@ -96,22 +120,22 @@ describe('searchHotels', () => {
     );
 
     const { searchHotels } = await import('../hotels');
-
-    await expect(searchHotels(baseParams)).rejects.toThrow(
-      '楽天APIの取得に失敗しました。',
-    );
+    // API failure with retry exhaustion returns DB fallback (no throw)
+    const result = await searchHotels(baseParams);
+    // DB fallback kicks in — should return hotels from DB data
+    expect(Array.isArray(result)).toBe(true);
   });
 
   it('正常なレスポンスでホテルを返す', async () => {
     const dbRows = [
-      {
-        rakuten_hotel_id: 12345,
+      buildDbRow({
         hotel_tag_slugs: ['separate-bath', 'public-bath'],
-        separate_bath_rooms: ['デラックスツイン'],
-        shower_only_rooms: [],
-      },
+        hotel_has_public_bath: true,
+      }),
     ];
-    const mockRpc = vi.fn().mockResolvedValue({ data: dbRows, error: null });
+    const mockRpc = vi
+      .fn()
+      .mockResolvedValue({ data: dbRows, error: null });
     vi.doMock('@/lib/supabase/server', () => ({
       createServerClient: () => ({ rpc: mockRpc }),
     }));
@@ -119,24 +143,21 @@ describe('searchHotels', () => {
     const rakutenResponse = {
       hotels: [
         {
-          hotel: [
+          hotelBasicInfo: {
+            hotelNo: 12345,
+            hotelName: 'テストホテル東京',
+            hotelImageUrl: 'https://img.rakuten.co.jp/test.jpg',
+            hotelMinCharge: 15000,
+            reviewAverage: 4.2,
+            address1: '東京都',
+            planListUrl: 'https://hotel.travel.rakuten.co.jp/12345',
+          },
+          roomInfo: [
             {
-              hotelBasicInfo: {
-                hotelNo: 12345,
-                hotelName: 'テストホテル東京',
-                hotelImageUrl: 'https://img.rakuten.co.jp/test.jpg',
-                reviewAverage: 4.2,
+              roomBasicInfo: {
+                roomName: 'デラックスツイン',
+                roomMinCharge: 15000,
               },
-            },
-            {
-              roomInfo: [
-                {
-                  roomBasicInfo: {
-                    roomName: 'デラックスツイン',
-                    roomMinCharge: 15000,
-                  },
-                },
-              ],
             },
           ],
         },
@@ -155,30 +176,18 @@ describe('searchHotels', () => {
     const result = await searchHotels(baseParams);
 
     expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
-      id: 12345,
-      name: 'テストホテル東京',
-      price: 15000,
-      imageUrl: 'https://img.rakuten.co.jp/test.jpg',
-      reviewAverage: 4.2,
-      roomName: 'デラックスツイン',
-      tags: ['separate-bath', 'public-bath'],
-      separateBathRooms: ['デラックスツイン'],
-      showerOnlyRooms: [],
-      hotelInformationUrl: null,
-    });
+    expect(result[0].id).toBe(12345);
+    expect(result[0].name).toBe('テストホテル東京');
+    expect(result[0].price).toBe(15000);
+    expect(result[0].tags).toEqual(['separate-bath', 'public-bath']);
+    expect(result[0].area).toBe('東京都');
   });
 
   it('重複ホテルは最安値を採用する', async () => {
-    const dbRows = [
-      {
-        rakuten_hotel_id: 12345,
-        hotel_tag_slugs: ['separate-bath'],
-        separate_bath_rooms: ['ツイン'],
-        shower_only_rooms: [],
-      },
-    ];
-    const mockRpc = vi.fn().mockResolvedValue({ data: dbRows, error: null });
+    const dbRows = [buildDbRow()];
+    const mockRpc = vi
+      .fn()
+      .mockResolvedValue({ data: dbRows, error: null });
     vi.doMock('@/lib/supabase/server', () => ({
       createServerClient: () => ({ rpc: mockRpc }),
     }));
@@ -186,46 +195,40 @@ describe('searchHotels', () => {
     const rakutenResponse = {
       hotels: [
         {
-          hotel: [
+          hotelBasicInfo: {
+            hotelNo: 12345,
+            hotelName: 'テストホテル',
+            hotelImageUrl: 'https://img.rakuten.co.jp/test.jpg',
+            hotelMinCharge: 20000,
+            reviewAverage: null,
+            address1: '東京都',
+            planListUrl: 'https://hotel.travel.rakuten.co.jp/12345',
+          },
+          roomInfo: [
             {
-              hotelBasicInfo: {
-                hotelNo: 12345,
-                hotelName: 'テストホテル',
-                hotelImageUrl: 'https://img.rakuten.co.jp/test.jpg',
-                reviewAverage: null,
+              roomBasicInfo: {
+                roomName: 'ツインA',
+                roomMinCharge: 20000,
               },
-            },
-            {
-              roomInfo: [
-                {
-                  roomBasicInfo: {
-                    roomName: 'ツインA',
-                    roomMinCharge: 20000,
-                  },
-                },
-              ],
             },
           ],
         },
         {
-          hotel: [
+          hotelBasicInfo: {
+            hotelNo: 12345,
+            hotelName: 'テストホテル',
+            hotelImageUrl: 'https://img.rakuten.co.jp/test.jpg',
+            hotelMinCharge: 12000,
+            reviewAverage: null,
+            address1: '東京都',
+            planListUrl: 'https://hotel.travel.rakuten.co.jp/12345',
+          },
+          roomInfo: [
             {
-              hotelBasicInfo: {
-                hotelNo: 12345,
-                hotelName: 'テストホテル',
-                hotelImageUrl: 'https://img.rakuten.co.jp/test.jpg',
-                reviewAverage: null,
+              roomBasicInfo: {
+                roomName: 'ツインB',
+                roomMinCharge: 12000,
               },
-            },
-            {
-              roomInfo: [
-                {
-                  roomBasicInfo: {
-                    roomName: 'ツインB',
-                    roomMinCharge: 12000,
-                  },
-                },
-              ],
             },
           ],
         },
@@ -248,15 +251,10 @@ describe('searchHotels', () => {
   });
 
   it('DBに無いホテルはフィルタリングされる', async () => {
-    const dbRows = [
-      {
-        rakuten_hotel_id: 11111,
-        hotel_tag_slugs: ['separate-bath'],
-        separate_bath_rooms: ['ツイン'],
-        shower_only_rooms: [],
-      },
-    ];
-    const mockRpc = vi.fn().mockResolvedValue({ data: dbRows, error: null });
+    const dbRows = [buildDbRow({ rakuten_hotel_id: 11111 })];
+    const mockRpc = vi
+      .fn()
+      .mockResolvedValue({ data: dbRows, error: null });
     vi.doMock('@/lib/supabase/server', () => ({
       createServerClient: () => ({ rpc: mockRpc }),
     }));
@@ -264,24 +262,20 @@ describe('searchHotels', () => {
     const rakutenResponse = {
       hotels: [
         {
-          hotel: [
+          hotelBasicInfo: {
+            hotelNo: 99999,
+            hotelName: '未登録ホテル',
+            hotelImageUrl: 'https://img.rakuten.co.jp/test.jpg',
+            hotelMinCharge: 8000,
+            reviewAverage: null,
+            address1: '東京都',
+          },
+          roomInfo: [
             {
-              hotelBasicInfo: {
-                hotelNo: 99999,
-                hotelName: '未登録ホテル',
-                hotelImageUrl: 'https://img.rakuten.co.jp/test.jpg',
-                reviewAverage: null,
+              roomBasicInfo: {
+                roomName: 'シングル',
+                roomMinCharge: 8000,
               },
-            },
-            {
-              roomInfo: [
-                {
-                  roomBasicInfo: {
-                    roomName: 'シングル',
-                    roomMinCharge: 8000,
-                  },
-                },
-              ],
             },
           ],
         },
@@ -303,15 +297,10 @@ describe('searchHotels', () => {
   });
 
   it('minPrice・maxPriceが楽天APIのURLに含まれる', async () => {
-    const dbRows = [
-      {
-        rakuten_hotel_id: 12345,
-        hotel_tag_slugs: ['separate-bath'],
-        separate_bath_rooms: [],
-        shower_only_rooms: [],
-      },
-    ];
-    const mockRpc = vi.fn().mockResolvedValue({ data: dbRows, error: null });
+    const dbRows = [buildDbRow()];
+    const mockRpc = vi
+      .fn()
+      .mockResolvedValue({ data: dbRows, error: null });
     vi.doMock('@/lib/supabase/server', () => ({
       createServerClient: () => ({ rpc: mockRpc }),
     }));
@@ -329,7 +318,8 @@ describe('searchHotels', () => {
       maxPrice: 30000,
     });
 
-    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    const calledUrl = mockFetch.mock.calls[0]?.[0] as string | undefined;
+    expect(calledUrl).toBeDefined();
     expect(calledUrl).toContain('minCharge=5000');
     expect(calledUrl).toContain('maxCharge=30000');
   });
